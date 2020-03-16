@@ -9,7 +9,7 @@ Not compatible (except maybe by accident) with any of the other DynamoDB geohash
 
 ## Installation
 
-As of now, there is no PyPi package. Install via
+As of now, there is no PyPI package. Install via
 ```
 pip install 'git+https://github.com/tom-mi/python-dynamodb-geo.git#egg=dynamodb-geo&subdirectory=src'
 ```
