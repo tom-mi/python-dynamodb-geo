@@ -1,0 +1,2 @@
+include versioneer.py
+include dynamodb_geo/_version.py
