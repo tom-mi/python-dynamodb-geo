@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Dict, List
 
 import boto3
@@ -28,7 +29,7 @@ class GeoTable:
         self._table.put_item(Item=enriched_item, **kwargs)
 
     def query(self, polygon: Polygon, limit: int, exclusive_start_key: Dict = None) -> QueryResult:
-
+        start = time.time()
         prefix_hashes = libgeohash.polygon_to_geohash(polygon, precision=self._config.prefix_length)
         if len(prefix_hashes) > self.MAX_PARTITIONS_TO_QUERY:
             raise ValueError(f'The given polygon covers {len(prefix_hashes)} partitions. '
@@ -60,12 +61,13 @@ class GeoTable:
                 if last_evaluated_key is None:
                     break
 
-        logging.debug(f'dynamodb-geo query limit={limit} hashes={len(prefix_hashes)} queries={stat_query_count} '
-                      f'queried_items={stat_query_items}')
         if len(items) >= limit + 1:
             return_last_evaluated_key = self._primary_key_from_item(items[limit-1])
         else:
             return_last_evaluated_key = None
+        delta = time.time() - start
+        logging.debug(f'dynamodb-geo query limit={limit} hashes={len(prefix_hashes)} queries={stat_query_count} '
+                      f'queried_items={stat_query_items} elapsed_seconds={delta}')
         return QueryResult(items=items[0:limit], last_evaluated_key=return_last_evaluated_key)
 
     def _primary_key_from_item(self, item: Dict) -> Dict:
