@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List
 
 import boto3
@@ -46,14 +47,21 @@ class GeoTable:
         else:
             last_evaluated_key = None
         items = []
+        stat_query_count = 0
+        stat_query_items = 0
         for prefix_hash in prefix_hashes:
             while len(items) < limit + 1:
                 remaining_items = limit + 1 - len(items)
                 new_items, last_evaluated_key = self._query_partition(prefix_hash, remaining_items,
                                                                       exclusive_start_key=last_evaluated_key)
+                stat_query_count += 1
+                stat_query_items += len(new_items)
                 items += self._filter_items(new_items, polygon)
                 if last_evaluated_key is None:
                     break
+
+        logging.debug(f'dynamodb-geo query limit={limit} hashes={len(prefix_hashes)} queries={stat_query_count} '
+                      f'queried_items={stat_query_items}')
         if len(items) >= limit + 1:
             return_last_evaluated_key = self._primary_key_from_item(items[limit-1])
         else:

@@ -1,8 +1,20 @@
+import logging
+
 import boto3
 import pytest
 from moto import mock_dynamodb2
 
 TABLE_NAME = 'table'
+
+
+@pytest.fixture(autouse=True)
+def configure_logging():
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(timestamp).6f %(level)-5s %(name)s: %(message)s',
+    )
+    logging.getLogger('boto3').setLevel(logging.INFO)
+    logging.getLogger('botocore').setLevel(logging.INFO)
 
 
 def get_all_items():
