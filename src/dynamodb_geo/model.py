@@ -15,14 +15,6 @@ class GeoPosition:
 
 
 @dataclass(frozen=True)
-class GeoBoundingBox:
-    left: float
-    bottom: float
-    right: float
-    top: float
-
-
-@dataclass(frozen=True)
 class QueryResult:
     items: List[Dict]
     last_evaluated_key: Optional[Dict]
