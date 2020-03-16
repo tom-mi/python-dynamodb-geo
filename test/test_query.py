@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 import libgeohash
@@ -9,8 +10,10 @@ from shapely.geometry import box
 
 
 @pytest.mark.parametrize('polygon, limit, prefix_length', [
-    (box(10.0, 48.0, 11.0, 49.0), 20, 4),
+    (box(10.0, 48.0, 11.0, 49.0), 20, 2),
     (box(10.0, 48.0, 11.0, 49.0), 100, 4),
+    (box(10.04, 48.04, 10.07, 48.07), 20, 2),
+    (box(10.04, 48.04, 10.07, 48.07), 20, 4),
     (box(10.001, 48.001, 10.003, 48.003), 7, 4),
     (box(10.000, 48.000, 11.11, 48.10), 5, 5),
     (shapely.geometry.LinearRing([(10.0, 48.0), (10.1, 48.0), (10.0, 48.1)]), 5, 5),
@@ -22,7 +25,8 @@ def test_query(setup_dynamodb, polygon, limit, prefix_length):
     table = GeoTable(table_name=pytest.TABLE_NAME, config=config)
     expected_number_of_results = min(limit, len(expected_ids))
     prefixes = set([item['_geohash_prefix'] for item in items if _is_item_in_polygon(polygon, item)])
-    print(prefixes)
+    logging.debug(f'test - prefixes {prefixes}')
+    logging.debug(f'test - expected_items {len(expected_ids)}')
 
     result = table.query(polygon=polygon, limit=limit)
 
