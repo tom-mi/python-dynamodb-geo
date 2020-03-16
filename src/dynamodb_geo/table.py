@@ -11,7 +11,10 @@ from shapely.geometry import Polygon
 
 
 class GeoTable:
-    MAX_PARTITIONS_TO_QUERY = 128
+    MAX_PARTITIONS_TO_QUERY = 256
+    # those are just guesses as of now :)
+    QUERY_OPTIMIZER_MIN_HASHES = 8
+    QUERY_OPTIMIZER_MAX_HASHES = 64
 
     def __init__(self, table_name: str, config: GeoTableConfiguration, dynamo_client=None, dynamo_resource=None):
         if dynamo_client is None:
@@ -30,30 +33,25 @@ class GeoTable:
 
     def query(self, polygon: Polygon, limit: int, exclusive_start_key: Dict = None) -> QueryResult:
         start = time.time()
-        prefix_hashes = libgeohash.polygon_to_geohash(polygon, precision=self._config.prefix_length)
-        if len(prefix_hashes) > self.MAX_PARTITIONS_TO_QUERY:
-            raise ValueError(f'The given polygon covers {len(prefix_hashes)} partitions. '
-                             f'No more than {self.MAX_PARTITIONS_TO_QUERY} are supported. '
-                             'Please use a shorter prefix length to support querying larger areas.')
-
-        prefix_hashes = sorted(prefix_hashes)
+        geohashes = sorted(self._raster_polygon(polygon))
+        query_precision = len(geohashes[0])
 
         if exclusive_start_key:
             result = self._table.get_item(Key=exclusive_start_key)
             if 'Item' not in result:
                 raise ValueError('The item with the given exclusive_start_key does not exist.')
             last_evaluated_key = self._query_key_from_item(result['Item'])
-            last_prefix = result['Item']['_geohash_prefix']
-            prefix_hashes = [prefix_hash for prefix_hash in prefix_hashes if prefix_hash >= last_prefix]
+            last_geohash = result['Item']['_geohash'][0:query_precision]
+            geohashes = [geohash for geohash in geohashes if geohash >= last_geohash]
         else:
             last_evaluated_key = None
         items = []
         stat_query_count = 0
         stat_query_items = 0
-        for prefix_hash in prefix_hashes:
+        for geohash in geohashes:
             while len(items) < limit + 1:
                 remaining_items = limit + 1 - len(items)
-                new_items, last_evaluated_key = self._query_partition(prefix_hash, remaining_items,
+                new_items, last_evaluated_key = self._query_partition(geohash, remaining_items,
                                                                       exclusive_start_key=last_evaluated_key)
                 stat_query_count += 1
                 stat_query_items += len(new_items)
@@ -62,13 +60,32 @@ class GeoTable:
                     break
 
         if len(items) >= limit + 1:
-            return_last_evaluated_key = self._primary_key_from_item(items[limit-1])
+            return_last_evaluated_key = self._primary_key_from_item(items[limit - 1])
         else:
             return_last_evaluated_key = None
         delta = time.time() - start
-        logging.debug(f'dynamodb-geo query limit={limit} hashes={len(prefix_hashes)} queries={stat_query_count} '
-                      f'queried_items={stat_query_items} elapsed_seconds={delta}')
+        logging.debug(
+            f'dynamodb-geo query limit={limit} hashes={len(geohashes)} query_precision={query_precision} '
+            f'queries={stat_query_count}  queried_items={stat_query_items} elapsed_seconds={delta}')
         return QueryResult(items=items[0:limit], last_evaluated_key=return_last_evaluated_key)
+
+    def _raster_polygon(self, polygon: Polygon) -> List[str]:
+        hashes = libgeohash.polygon_to_geohash(polygon, precision=self._config.prefix_length)
+        if len(hashes) > self.MAX_PARTITIONS_TO_QUERY:
+            raise ValueError(f'The given polygon covers {len(hashes)} partitions. '
+                             f'No more than {self.MAX_PARTITIONS_TO_QUERY} are supported. '
+                             'Please use a shorter prefix length to support querying larger areas.')
+        if len(hashes) > self.QUERY_OPTIMIZER_MIN_HASHES:
+            return hashes
+        for precision in range(self._config.prefix_length + 1, self._config.precision + 1):
+            current_hashes = libgeohash.polygon_to_geohash(polygon, precision=precision)
+            if len(current_hashes) <= self.QUERY_OPTIMIZER_MAX_HASHES:
+                hashes = current_hashes
+            else:
+                break
+            if len(hashes) >= self.QUERY_OPTIMIZER_MIN_HASHES:
+                break
+        return hashes
 
     def _primary_key_from_item(self, item: Dict) -> Dict:
         key = {self._config.partition_key_field: item[self._config.partition_key_field]}
@@ -86,12 +103,14 @@ class GeoTable:
             key[self._config.sort_key_field] = item[self._config.sort_key_field]
         return key
 
-    def _query_partition(self, geohash_prefix: str, limit: int, exclusive_start_key=None):
+    def _query_partition(self, geohash: str, limit: int, exclusive_start_key=None):
+        geohash_prefix = geohash[0:self._config.prefix_length]
         params = dict(
             TableName=self._table_name,
             IndexName=self._config.geohash_index,
             KeyConditions={
                 self._config.geohash_prefix_field: {'AttributeValueList': [geohash_prefix], 'ComparisonOperator': 'EQ'},
+                self._config.geohash_field: {'AttributeValueList': [geohash], 'ComparisonOperator': 'BEGINS_WITH'},
             },
             Limit=limit,
         )
