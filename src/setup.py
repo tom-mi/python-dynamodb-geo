@@ -7,7 +7,9 @@ with open('../README.md', encoding='utf-8') as f:
     long_description = f.read()
 
 install_requirements = [
+    'boto3',
     'libgeohash',
+    'shapely',
 ]
 
 setup(
