@@ -32,6 +32,7 @@ def mock_time(monkeypatch):
 @pytest.fixture
 def handler(setup_dynamodb, local_dynamodb_client, local_dynamodb_resource):
     return StatisticsStreamHandler(
+        source_table_name=pytest.TABLE_NAME,
         source_config=SOURCE_CONFIG,
         statistics_table_name=pytest.STATISTICS_TABLE_NAME,
         statistics_config=STATISTICS_CONFIG,
@@ -142,6 +143,24 @@ def test_handles_items_without_geohash_gracefully(handler, get_all_items, insert
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2
     assert get_stat_item(3, 1, geohash=OTHER_GEOHASH) in items
+    assert get_stat_item(7, 1, geohash=OTHER_GEOHASH) in items
+
+
+def test_full_table_reprocesing(handler, insert_item, get_all_items):
+    insert_item(pytest.TABLE_NAME, {'id': 'id-1', '_geohash': OTHER_GEOHASH})
+    insert_item(pytest.TABLE_NAME, {'id': 'id-2', '_geohash': GEOHASH})
+    insert_item(pytest.TABLE_NAME, {'id': 'id-3', '_geohash': GEOHASH})
+    insert_item(pytest.TABLE_NAME, {'id': 'id-4'})
+    insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 42))
+    insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(5, 42))
+    insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(7, 42))
+
+    handler.reprocess_full_table()
+
+    items = get_all_items(pytest.STATISTICS_TABLE_NAME)
+    assert len(items) == 3
+    assert get_stat_item(3, 3, geohash=GEOHASH) in items
+    assert get_stat_item(7, 2, geohash=GEOHASH) in items
     assert get_stat_item(7, 1, geohash=OTHER_GEOHASH) in items
 
 

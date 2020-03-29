@@ -107,6 +107,7 @@ class StatisticsTable:
 
 class StatisticsStreamHandler:
     def __init__(self,
+                 source_table_name: str,
                  source_config: GeoTableConfiguration,
                  statistics_table_name: str,
                  statistics_config: StatisticsConfiguration,
@@ -117,6 +118,7 @@ class StatisticsStreamHandler:
             dynamo_client = boto3.client('dynamodb')
         if dynamo_resource is None:
             dynamo_resource = boto3.resource('dynamodb')
+        self._source_table_name = source_table_name
         self._statistics_table = dynamo_resource.Table(statistics_table_name)
         self._statistics_table_name = statistics_table_name
         self._client = dynamo_client
@@ -124,9 +126,34 @@ class StatisticsStreamHandler:
         self._statistics_config: StatisticsConfiguration = statistics_config
 
     def handle_event(self, event):
-        logging.info(f'Handling {len(event["Records"])} dynamodb stream records')
-        for record in event['Records']:
-            self._handle_dynamodb_stream_record(record)
+        if event.get('Reprocess'):
+            self.reprocess_full_table()
+        elif 'Records' in event:
+            logging.info(f'Handling {len(event["Records"])} dynamodb stream records')
+            for record in event['Records']:
+                self._handle_dynamodb_stream_record(record)
+        else:
+            logging.warning(f'Could not handle event {event}')
+
+    def reprocess_full_table(self):
+        logging.info('Reprocessing full table')
+        paginator = self._client.get_paginator('scan')
+        for page in paginator.paginate(TableName=self._statistics_table_name, ):
+            for item in page['Items']:
+                self._client.delete_item(TableName=self._statistics_table_name,
+                                         Key={'_geohash_prefix': item['_geohash_prefix'], '_geohash': item['_geohash']})
+
+        for page in paginator.paginate(TableName=self._source_table_name):
+            for item in page['Items']:
+                updates = []
+                geohash = self._get_geohash(item)
+                if geohash:
+                    logging.debug(f'Reprocessing item with geohash {geohash}')
+                    for precision in self._statistics_config.precision_steps:
+                        updates.append(self._get_change_item(geohash=geohash, precision=precision, increment=1))
+                if len(updates) > 0:
+                    self._client.transact_write_items(TransactItems=[{'Update': update} for update in updates])
+        logging.info('Reprocessing finished')
 
     def _handle_dynamodb_stream_record(self, record):
         updates = []
@@ -155,7 +182,7 @@ class StatisticsStreamHandler:
         if len(updates) > 0:
             self._client.transact_write_items(
                 TransactItems=[{'Update': update} for update in updates],
-                ClientRequestToken=f'eventId={record["eventId"]}'
+                ClientRequestToken=f'event_id={record["eventId"]}'
             )
         for delete in conditional_deletes:
             try:
