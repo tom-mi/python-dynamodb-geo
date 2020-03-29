@@ -83,9 +83,10 @@ class StatisticsTable:
                 if len(current_hashes) <= self.MAX_HASHES_TO_QUERY:
                     hashes = current_hashes
                 else:
-                    raise ValueError(f'The given polygon covers {len(hashes)} at the lowest available precision. '
-                                     f'No more than {self.MAX_HASHES_TO_QUERY} are supported. '
-                                     'Please add a lower precision_step to support querying larger areas.')
+                    raise ValueError(
+                        f'The given polygon covers {len(current_hashes)} at the lowest available precision. '
+                        f'No more than {self.MAX_HASHES_TO_QUERY} are supported. '
+                        'Please add a lower precision_step to support querying larger areas.')
             elif len(current_hashes) <= self.QUERY_OPTIMIZER_MAX_HASHES:
                 hashes = current_hashes
             else:
@@ -130,21 +131,24 @@ class StatisticsStreamHandler:
     def _handle_dynamodb_stream_record(self, record):
         updates = []
         conditional_deletes = []
+        old_geohash, new_geohash = None, None
         if record['eventName'] == 'INSERT':
             new_geohash = self._get_geohash(record['dynamodb']['NewImage'])
-            for precision in self._statistics_config.precision_steps:
-                updates.append(self._get_change_item(geohash=new_geohash, precision=precision, increment=1))
         elif record['eventName'] == 'MODIFY':
             old_geohash = self._get_geohash(record['dynamodb']['OldImage'])
             new_geohash = self._get_geohash(record['dynamodb']['NewImage'])
-            for precision in self._statistics_config.precision_steps:
+        elif record['eventName'] == 'REMOVE':
+            old_geohash = self._get_geohash(record['dynamodb']['OldImage'])
+
+        for precision in self._statistics_config.precision_steps:
+            if old_geohash and new_geohash:
                 if old_geohash[0:precision] != new_geohash[0:precision]:
                     updates.append(self._get_change_item(geohash=old_geohash, precision=precision, increment=-1))
                     updates.append(self._get_change_item(geohash=new_geohash, precision=precision, increment=1))
                     conditional_deletes.append(self._get_conditional_delete(geohash=old_geohash, precision=precision))
-        elif record['eventName'] == 'REMOVE':
-            old_geohash = self._get_geohash(record['dynamodb']['OldImage'])
-            for precision in self._statistics_config.precision_steps:
+            elif new_geohash:
+                updates.append(self._get_change_item(geohash=new_geohash, precision=precision, increment=1))
+            elif old_geohash:
                 updates.append(self._get_change_item(geohash=old_geohash, precision=precision, increment=-1))
                 conditional_deletes.append(self._get_conditional_delete(geohash=old_geohash, precision=precision))
 
@@ -202,7 +206,8 @@ class StatisticsStreamHandler:
         }
 
     def _get_geohash(self, item):
-        return TypeDeserializer().deserialize(item[self._source_config.geohash_field])
+        if self._source_config.geohash_field in item:
+            return TypeDeserializer().deserialize(item[self._source_config.geohash_field])
 
 
 def _timestamp_to_db(timestamp: datetime) -> str:

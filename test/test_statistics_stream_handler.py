@@ -127,6 +127,24 @@ def test_delete_item(handler, insert_item, get_all_items):
     assert get_stat_item(3, 1, geohash=GEOHASH) in items
 
 
+def test_handles_items_without_geohash_gracefully(handler, get_all_items, insert_item):
+    event = get_stream_handler_event([
+        (None, {'id': 'id-1'}),
+        ({'id': 'id-2', '_geohash': GEOHASH, '_geohash_prefix': GEOHASH_PREFIX}, None),
+        ({'id': 'id-3'}, {'id': 'id-3', '_geohash': OTHER_GEOHASH, '_geohash_prefix': GEOHASH_PREFIX}),
+        ({'id': 'id-3', '_geohash': GEOHASH, '_geohash_prefix': GEOHASH_PREFIX}, {'id': 'id-3'}),
+    ])
+    insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 2))
+    insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(7, 2))
+
+    handler.handle_event(event)
+
+    items = get_all_items(pytest.STATISTICS_TABLE_NAME)
+    assert len(items) == 2
+    assert get_stat_item(3, 1, geohash=OTHER_GEOHASH) in items
+    assert get_stat_item(7, 1, geohash=OTHER_GEOHASH) in items
+
+
 def get_stream_handler_event(records: List[Tuple[Optional[Dict], Optional[Dict]]]):
     return {
         'Records': [get_stream_handler_event_record(old_item, new_item) for old_item, new_item in records],
