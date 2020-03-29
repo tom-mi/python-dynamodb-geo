@@ -16,12 +16,13 @@ ITEM = {
 }
 
 
-def test_save(setup_dynamodb):
-    table = GeoTable(table_name=pytest.TABLE_NAME, config=CONFIG)
+def test_save(setup_dynamodb, local_dynamodb_client, local_dynamodb_resource, get_all_items):
+    table = GeoTable(table_name=pytest.TABLE_NAME, config=CONFIG, dynamo_client=local_dynamodb_client,
+                     dynamo_resource=local_dynamodb_resource)
 
     table.put_item(item=ITEM)
 
-    items = pytest.get_all_items()
+    items = get_all_items(pytest.TABLE_NAME)
     assert len(items) == 1
 
     assert items[0]['id'] == ITEM['id']

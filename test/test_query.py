@@ -18,11 +18,13 @@ from shapely.geometry import box
     (box(10.000, 48.000, 11.11, 48.10), 5, 5),
     (shapely.geometry.LinearRing([(10.0, 48.0), (10.1, 48.0), (10.0, 48.1)]), 5, 5),
 ])
-def test_query(setup_dynamodb, polygon, limit, prefix_length):
+def test_query(setup_dynamodb, local_dynamodb_resource, local_dynamodb_client, insert_item, polygon, limit,
+               prefix_length):
     config = GeoTableConfiguration(partition_key_field='id', prefix_length=prefix_length)
-    items = _setup_test_data(config)
+    items = _setup_test_data(config, insert_item)
     expected_ids = [item['id'] for item in items if _is_item_in_polygon(polygon, item)]
-    table = GeoTable(table_name=pytest.TABLE_NAME, config=config)
+    table = GeoTable(table_name=pytest.TABLE_NAME, config=config, dynamo_client=local_dynamodb_client,
+                     dynamo_resource=local_dynamodb_resource)
     expected_number_of_results = min(limit, len(expected_ids))
     prefixes = set([item['_geohash_prefix'] for item in items if _is_item_in_polygon(polygon, item)])
     logging.debug(f'test - prefixes {prefixes}')
@@ -58,7 +60,7 @@ def _is_item_in_polygon(bounding_box, item):
     return bounding_box.contains(shapely.geometry.Point(lon, lat))
 
 
-def _setup_test_data(config: GeoTableConfiguration, num_lat=10, num_lon=10):
+def _setup_test_data(config: GeoTableConfiguration, insert_item, num_lat=10, num_lon=10):
     items = []
     for i in range(num_lat):
         for j in range(num_lon):
@@ -72,6 +74,6 @@ def _setup_test_data(config: GeoTableConfiguration, num_lat=10, num_lon=10):
                 '_geohash': geohash,
                 '_geohash_prefix': geohash_prefix,
             }
-            pytest.insert_item(item)
+            insert_item(pytest.TABLE_NAME, item)
             items.append(item)
     return items

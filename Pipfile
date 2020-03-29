@@ -6,7 +6,6 @@ verify_ssl = true
 [dev-packages]
 dynamodb-geo = {editable = true,path = "./src"}
 pytest = '*'
-moto = '*'
 versioneer = '*'
 
 [packages]
