@@ -1,10 +1,11 @@
-from datetime import timezone, datetime
+from datetime import timezone, datetime, time
 from decimal import Decimal
 from typing import List, Tuple, Dict, Optional
 from unittest import mock
 
 import dynamodb_geo
 import pytest
+import time
 from boto3.dynamodb.types import TypeSerializer
 from dynamodb_geo import GeoTableConfiguration
 from dynamodb_geo.configuration import StatisticsConfiguration
@@ -20,6 +21,8 @@ GEOHASH_PREFIX = 'u28'
 TIME = datetime(2020, 3, 29, 13, 17, 1, tzinfo=timezone.utc)
 OLD_TIME_DB = '2020-03-26T13:17:01.000000Z'
 TIME_DB = '2020-03-29T13:17:01.000000Z'
+
+event_counter = 0
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +54,19 @@ def test_create_item(handler, get_all_items):
     assert get_stat_item(3, 1) in items
     assert get_stat_item(7, 1) in items
 
+
+def test_event_is_handled_idempotent(handler, get_all_items):
+    event = get_stream_handler_event([
+        (None, {'id': 'id-1', '_geohash': GEOHASH, '_geohash_prefix': GEOHASH_PREFIX})
+    ])
+
+    handler.handle_event(event)
+    handler.handle_event(event)
+
+    items = get_all_items(pytest.STATISTICS_TABLE_NAME)
+    assert len(items) == 2
+    assert get_stat_item(3, 1) in items
+    assert get_stat_item(7, 1) in items
 
 def test_create_item_add_to_existing_entry(handler, get_all_items, insert_item):
     event = get_stream_handler_event([
@@ -120,7 +136,7 @@ def get_stream_handler_event(records: List[Tuple[Optional[Dict], Optional[Dict]]
 
 def get_stream_handler_event_record(old_item, new_item):
     record = {
-        'eventId': '1',
+        'eventId': str(time.time()),
         'dynamodb': {
             'StreamViewType': 'NEW_AND_OLD_IMAGES',
         }

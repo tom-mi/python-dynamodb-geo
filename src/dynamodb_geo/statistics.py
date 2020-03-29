@@ -52,7 +52,10 @@ class StatisticsStreamHandler:
                 conditional_deletes.append(self._get_conditional_delete(geohash=old_geohash, precision=precision))
 
         if len(updates) > 0:
-            self._client.transact_write_items(TransactItems=[{'Update': update} for update in updates])
+            self._client.transact_write_items(
+                TransactItems=[{'Update': update} for update in updates],
+                ClientRequestToken=f'eventId={record["eventId"]}'
+            )
         for delete in conditional_deletes:
             try:
                 self._client.delete_item(**delete)
