@@ -79,3 +79,23 @@ Query the next page:
 ```python
 next_result = geo_table.query(polygon=box(10.0, 48.0, 11.0, 49.0), limit=20, exclusive_start_key=result.last_evaluated_key)
 ```
+
+
+## Development setup
+
+Install dependencies via Pipenv
+
+```
+pipenv install --dev
+```
+
+Start local dynamodb
+```
+docker run -p8000:8000 amazon/dynamodb-local
+```
+
+Run tests
+
+```
+pipenv run pytest test/
+```
