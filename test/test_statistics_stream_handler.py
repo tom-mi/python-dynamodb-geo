@@ -46,7 +46,7 @@ def test_create_item(handler, get_all_items):
         (None, {'id': 'id-1', '_geohash': GEOHASH, '_geohash_prefix': GEOHASH_PREFIX})
     ])
 
-    handler.handle_event(event)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2
@@ -59,8 +59,8 @@ def test_event_is_handled_idempotent(handler, get_all_items):
         (None, {'id': 'id-1', '_geohash': GEOHASH, '_geohash_prefix': GEOHASH_PREFIX})
     ])
 
-    handler.handle_event(event)
-    handler.handle_event(event)
+    handler.handle_event(event, None)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2
@@ -74,7 +74,7 @@ def test_create_item_add_to_existing_entry(handler, get_all_items, insert_item):
     ])
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 1))
 
-    handler.handle_event(event)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2
@@ -90,7 +90,7 @@ def test_update_item_same_location(handler, insert_item, get_all_items):
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 1, updated_at=OLD_TIME_DB))
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(7, 1, updated_at=OLD_TIME_DB))
 
-    handler.handle_event(event)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2
@@ -106,7 +106,7 @@ def test_update_item_other_location(handler, insert_item, get_all_items):
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 1))
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(7, 1))
 
-    handler.handle_event(event)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2
@@ -121,7 +121,7 @@ def test_delete_item(handler, insert_item, get_all_items):
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 2))
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(7, 1))
 
-    handler.handle_event(event)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 1
@@ -138,7 +138,7 @@ def test_handles_items_without_geohash_gracefully(handler, get_all_items, insert
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(3, 2))
     insert_item(pytest.STATISTICS_TABLE_NAME, get_stat_item(7, 2))
 
-    handler.handle_event(event)
+    handler.handle_event(event, None)
 
     items = get_all_items(pytest.STATISTICS_TABLE_NAME)
     assert len(items) == 2

@@ -122,7 +122,7 @@ class StatisticsStreamHandler:
         self._source_config = source_config
         self._statistics_config: StatisticsConfiguration = statistics_config
 
-    def handle_event(self, event):
+    def handle_event(self, event, context):
         if event.get('Reprocess'):
             self.reprocess_full_table()
         elif 'Records' in event:
