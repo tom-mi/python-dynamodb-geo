@@ -1,11 +1,11 @@
-from datetime import timezone, datetime, time
+import time
+from datetime import timezone, datetime
 from decimal import Decimal
 from typing import List, Tuple, Dict, Optional
 from unittest import mock
 
 import dynamodb_geo
 import pytest
-import time
 from boto3.dynamodb.types import TypeSerializer
 from dynamodb_geo import GeoTableConfiguration
 from dynamodb_geo.configuration import StatisticsConfiguration
@@ -21,8 +21,6 @@ GEOHASH_PREFIX = 'u28'
 TIME = datetime(2020, 3, 29, 13, 17, 1, tzinfo=timezone.utc)
 OLD_TIME_DB = '2020-03-26T13:17:01.000000Z'
 TIME_DB = '2020-03-29T13:17:01.000000Z'
-
-event_counter = 0
 
 
 @pytest.fixture(autouse=True)
@@ -67,6 +65,7 @@ def test_event_is_handled_idempotent(handler, get_all_items):
     assert len(items) == 2
     assert get_stat_item(3, 1) in items
     assert get_stat_item(7, 1) in items
+
 
 def test_create_item_add_to_existing_entry(handler, get_all_items, insert_item):
     event = get_stream_handler_event([
