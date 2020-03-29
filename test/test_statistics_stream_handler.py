@@ -1,15 +1,15 @@
 import time
+import uuid
 from datetime import timezone, datetime
 from decimal import Decimal
 from typing import List, Tuple, Dict, Optional
-from unittest import mock
 
-import dynamodb_geo
 import pytest
 from boto3.dynamodb.types import TypeSerializer
 from dynamodb_geo import GeoTableConfiguration
 from dynamodb_geo.configuration import StatisticsConfiguration
 from dynamodb_geo.statistics import StatisticsStreamHandler
+from freezegun import freeze_time
 
 SOURCE_CONFIG = GeoTableConfiguration(partition_key_field='id')
 STATISTICS_CONFIG = StatisticsConfiguration(
@@ -25,8 +25,8 @@ TIME_DB = '2020-03-29T13:17:01.000000Z'
 
 @pytest.fixture(autouse=True)
 def mock_time(monkeypatch):
-    utcnow_mock = mock.Mock(return_value=TIME)
-    monkeypatch.setattr(dynamodb_geo.statistics, '_get_utcnow', utcnow_mock)
+    with freeze_time(TIME_DB):
+        yield
 
 
 @pytest.fixture
@@ -172,7 +172,7 @@ def get_stream_handler_event(records: List[Tuple[Optional[Dict], Optional[Dict]]
 
 def get_stream_handler_event_record(old_item, new_item):
     record = {
-        'eventId': str(time.time()),
+        'eventId': str(uuid.uuid4()),
         'dynamodb': {
             'StreamViewType': 'NEW_AND_OLD_IMAGES',
         }

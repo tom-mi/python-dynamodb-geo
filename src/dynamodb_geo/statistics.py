@@ -179,7 +179,7 @@ class StatisticsStreamHandler:
         if len(updates) > 0:
             self._client.transact_write_items(
                 TransactItems=[{'Update': update} for update in updates],
-                ClientRequestToken=f'event_id={record["eventId"]}'
+                ClientRequestToken=record['eventId'],
             )
         for delete in conditional_deletes:
             try:
@@ -194,7 +194,7 @@ class StatisticsStreamHandler:
                     'N': str(increment),
                 },
                 ':updated_at': {
-                    'S': _timestamp_to_db(_get_utcnow()),
+                    'S': _timestamp_to_db(datetime.utcnow().replace(tzinfo=timezone.utc)),
                 }
             },
             Key=self._get_key(geohash=geohash, precision=precision),
@@ -229,12 +229,5 @@ class StatisticsStreamHandler:
 
 
 def _timestamp_to_db(timestamp: datetime) -> str:
-    print(timestamp)
-    print(timestamp.tzinfo)
     assert timestamp.tzinfo == timezone.utc
     return timestamp.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-# for testing
-def _get_utcnow():
-    return datetime.utcnow()
