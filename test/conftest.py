@@ -85,13 +85,11 @@ def setup_dynamodb(monkeypatch, local_dynamodb_client, local_dynamodb_resource):
     )
     local_dynamodb_resource.create_table(
         AttributeDefinitions=[
-            {'AttributeName': '_geohash_prefix', 'AttributeType': 'S'},
             {'AttributeName': '_geohash', 'AttributeType': 'S'},
         ],
         TableName=STATISTICS_TABLE_NAME,
         KeySchema=[
-            {'AttributeName': '_geohash_prefix', 'KeyType': 'HASH'},
-            {'AttributeName': '_geohash', 'KeyType': 'RANGE'},
+            {'AttributeName': '_geohash', 'KeyType': 'HASH'},
         ],
         BillingMode='PAY_PER_REQUEST',
     )

@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Callable, Any, Tuple, Dict, Optional, List
+from typing import Callable, Any, Tuple, Dict, Optional
 
 from dynamodb_geo.model import GeoPosition
 
@@ -29,5 +29,3 @@ class GeoTableConfiguration:
 @dataclass
 class StatisticsConfiguration:
     precision_steps: Tuple[int, ...] = (3, 5, 7)
-    prefix_length: int = 3
-

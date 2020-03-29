@@ -195,7 +195,6 @@ def get_stream_handler_event_record(old_item, new_item):
 
 def get_stat_item(precision: int, count: int, geohash=GEOHASH, updated_at=TIME_DB):
     return {
-        '_geohash_prefix': geohash[0:3],
         '_geohash': geohash[0:precision],
         'item_count': Decimal(count),
         'updated_at': updated_at,

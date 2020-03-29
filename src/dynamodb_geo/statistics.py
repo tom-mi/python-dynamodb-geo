@@ -51,10 +51,7 @@ class StatisticsTable:
         return StatisticsQueryResult(items=[self._statistics_item_from_db(item) for item in items])
 
     def _key_from_geohash(self, geohash: str):
-        if len(geohash) < self._statistics_config.prefix_length:
-            raise ValueError(f'Cannot query with geohash={geohash} shorter than prefix length')
         return {
-            '_geohash_prefix': {'S': geohash[0:self._statistics_config.prefix_length]},
             '_geohash': {'S': geohash},
         }
 
@@ -141,7 +138,7 @@ class StatisticsStreamHandler:
         for page in paginator.paginate(TableName=self._statistics_table_name, ):
             for item in page['Items']:
                 self._client.delete_item(TableName=self._statistics_table_name,
-                                         Key={'_geohash_prefix': item['_geohash_prefix'], '_geohash': item['_geohash']})
+                                         Key={'_geohash': item['_geohash']})
 
         for page in paginator.paginate(TableName=self._source_table_name):
             for item in page['Items']:
@@ -220,13 +217,7 @@ class StatisticsStreamHandler:
     def _get_key(self, geohash: str, precision: int):
         if len(geohash) < precision:
             raise ValueError(f'Cannot create key with precision {precision} from too short geohash "{geohash}"')
-        if precision < self._statistics_config.prefix_length:
-            raise ValueError(f'Cannot create key with precision={precision} '
-                             f'smaller than prefix_length={self._statistics_config.prefix_length}')
         return {
-            '_geohash_prefix': {
-                'S': geohash[0:self._statistics_config.prefix_length],
-            },
             '_geohash': {
                 'S': geohash[0:precision],
             },
