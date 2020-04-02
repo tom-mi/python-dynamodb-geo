@@ -1,13 +1,13 @@
 import logging
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import boto3
 import libgeohash
 from dynamodb_geo.configuration import GeoTableConfiguration
 from dynamodb_geo.enricher import GeoItemEnricher
 from dynamodb_geo.model import QueryResult
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
 
 
 class GeoTable:
@@ -31,9 +31,19 @@ class GeoTable:
         enriched_item = self._enricher.enrich_item(item=item)
         self._table.put_item(Item=enriched_item, **kwargs)
 
-    def query(self, polygon: Polygon, limit: int, exclusive_start_key: Dict = None) -> QueryResult:
+    def query(self, limit: int, polygon: Polygon = None, geohash: str = None,
+              exclusive_start_key: Dict = None) -> QueryResult:
+        self._validate_parameters(polygon, geohash)
         start = time.time()
-        geohashes = sorted(self._raster_polygon(polygon))
+
+        if geohash is not None:
+            if len(geohash) < self._config.prefix_length or len(geohash) > self._config.precision:
+                bounds = libgeohash.bbox(geohash)
+                polygon = box(bounds['w'], bounds['s'], bounds['e'], bounds['n'])
+        if polygon is not None:
+            geohashes = sorted(self._raster_polygon(polygon))
+        else:
+            geohashes = [geohash]
         query_precision = len(geohashes[0])
 
         if exclusive_start_key:
@@ -42,20 +52,23 @@ class GeoTable:
                 raise ValueError('The item with the given exclusive_start_key does not exist.')
             last_evaluated_key = self._query_key_from_item(result['Item'])
             last_geohash = result['Item']['_geohash'][0:query_precision]
-            geohashes = [geohash for geohash in geohashes if geohash >= last_geohash]
+            geohashes = [geohash_to_query for geohash_to_query in geohashes if geohash_to_query >= last_geohash]
         else:
             last_evaluated_key = None
         items = []
         stat_query_count = 0
         stat_query_items = 0
-        for geohash in geohashes:
+        for geohash_to_query in geohashes:
             while len(items) < limit + 1:
                 remaining_items = limit + 1 - len(items)
-                new_items, last_evaluated_key = self._query_partition(geohash, remaining_items,
+                new_items, last_evaluated_key = self._query_partition(geohash_to_query, remaining_items,
                                                                       exclusive_start_key=last_evaluated_key)
                 stat_query_count += 1
                 stat_query_items += len(new_items)
-                items += self._filter_items(new_items, polygon)
+                if polygon is not None:
+                    items += self._filter_items(new_items, polygon)
+                else:
+                    items += new_items
                 if last_evaluated_key is None:
                     break
 
@@ -68,6 +81,13 @@ class GeoTable:
             f'dynamodb-geo query limit={limit} hashes={len(geohashes)} query_precision={query_precision} '
             f'queries={stat_query_count}  queried_items={stat_query_items} elapsed_seconds={delta}')
         return QueryResult(items=items[0:limit], last_evaluated_key=return_last_evaluated_key)
+
+    @staticmethod
+    def _validate_parameters(polygon: Optional[Polygon], geohash: Optional[str]):
+        if polygon is None and geohash is None:
+            raise ValueError('Exactly one of geohash or polygon must be specified as query parameter.')
+        if polygon is not None and geohash is not None:
+            raise ValueError('Cannot query by both geohash and polygon.')
 
     def _raster_polygon(self, polygon: Polygon) -> List[str]:
         hashes = libgeohash.polygon_to_geohash(polygon, precision=self._config.prefix_length)
