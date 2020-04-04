@@ -183,7 +183,7 @@ class StatisticsStreamHandler:
         if len(updates) > 0:
             self._client.transact_write_items(
                 TransactItems=[{'Update': update} for update in updates],
-                ClientRequestToken=record['eventId'],
+                ClientRequestToken=record['eventID'],
             )
         for delete in conditional_deletes:
             try:

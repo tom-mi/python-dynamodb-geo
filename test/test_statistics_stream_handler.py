@@ -171,7 +171,7 @@ def get_stream_handler_event(records: List[Tuple[Optional[Dict], Optional[Dict]]
 
 def get_stream_handler_event_record(old_item, new_item):
     record = {
-        'eventId': str(uuid.uuid4()),
+        'eventID': str(uuid.uuid4()),
         'dynamodb': {
             'StreamViewType': 'NEW_AND_OLD_IMAGES',
         }
