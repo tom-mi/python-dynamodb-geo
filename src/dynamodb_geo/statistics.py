@@ -126,9 +126,13 @@ class StatisticsStreamHandler:
         if event.get('Reprocess'):
             self.reprocess_full_table()
         elif 'Records' in event:
-            logging.info(f'Handling {len(event["Records"])} dynamodb stream records')
-            for record in event['Records']:
-                self._handle_dynamodb_stream_record(record)
+            try:
+                logging.info(f'Handling {len(event["Records"])} dynamodb stream records')
+                for record in event['Records']:
+                    self._handle_dynamodb_stream_record(record)
+            except Exception as e:
+                logging.exception(f'Error handling event {event}')
+                raise e
         else:
             logging.warning(f'Could not handle event {event}')
 
